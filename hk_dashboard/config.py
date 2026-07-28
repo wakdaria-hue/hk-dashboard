@@ -29,6 +29,37 @@ NAME_MAP = {
     "lyudmila": "L Usatiuk",
     "diana": "D A Agyemang",
     "marina": "M Zarovniaieva",
+    "federico": "F Rodrigues Prudencio",
+    "frederico": "F Rodrigues Prudencio",
+    "mariia": "M Chechul",
+    "raisa": "R Tretiak",
+    "raiza": "R Tretiak",
+    "sayara": "S Kosimova",
+    "vasyliy": "V Mirza",
+    "lucila": "L Colombo",
+    "nerea": "N Nunez Fernandez",
+    "natalie": "N Chyniakina",
+    "natalia": "N Chyniakina",
+    "ravan": "S Baishnab",
+    "anna": "A Grigoriadi",
+    # New hires not yet on payroll - will get a real rate_store entry once
+    # their first payroll PDF (July 2026) is uploaded.
+    "faith": "F Ugbena",
+    "leila": "R Nistorova",
+}
+
+# First names of external/agency staff who worked shifts but are never on the
+# "Overzicht Loonkosten" payroll export - they're paid a flat rate outside
+# this payroll system. Their hours count normally everywhere; their cost uses
+# this flat rate instead of a rate_store lookup (see aggregations.attach_costs).
+EXTERNAL_WORKER_RATES = {
+    "olena": 14.50,
+    "nelly": 14.50,
+    "alexandra": 14.50,
+    "dominika": 14.50,
+    "ruby": 14.50,
+    "veronika": 14.50,
+    "yaroslava": 14.50,
 }
 
 # Name of the tab (within the rate-history spreadsheet) that stores parsed

@@ -38,6 +38,7 @@ table = table.rename(
         "hourly_rate_eur": "Rate (EUR/hr)",
         "cost_eur": "Cost (EUR)",
         "rate_missing": "No rate on file",
+        "is_external_rate": "External (flat rate)",
     }
 )
 
@@ -49,6 +50,14 @@ else:
         st.warning(
             f"⚠️ {len(no_rate)} housekeeper/hotel/month row(s) have no matching payroll rate "
             "- their cost shows blank rather than a guessed number."
+        )
+
+    external_rows = table[table["External (flat rate)"]]
+    if not external_rows.empty:
+        st.info(
+            f"ℹ️ {len(external_rows)} row(s) belong to external/agency staff paid directly by the "
+            "hotel (not through this payroll system) - their cost uses a fixed assumed rate, not a "
+            "verified payroll figure. See EXTERNAL_WORKER_RATES in hk_dashboard/config.py."
         )
 
     st.dataframe(

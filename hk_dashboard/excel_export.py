@@ -32,7 +32,11 @@ HOURS_FMT = "0.0"
 
 
 def _col_width(col_name: str, series: pd.Series) -> float:
-    values_len = series.astype(str).map(len).max() if len(series) else 0
+    # Plain str(v) on each Python value (not Series.astype(str)/.map) - pandas'
+    # Arrow-backed string dtype (pandas 3.x) doesn't reliably stringify NaN/None
+    # through .astype(str).map(len), which crashes on any column with blanks
+    # (e.g. cost cells for a month with no payroll rate on file yet).
+    values_len = max((len(str(v)) for v in series), default=0)
     return max(10, min(30, max(len(str(col_name)), values_len) + 4))
 
 

@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from hk_dashboard.config import HOTEL_SHEETS
+from hk_dashboard.config import EXTERNAL_WORKER_RATES, HOTEL_SHEETS
 from hk_dashboard.hk_parser import UnmappedName, parse_hotel_sheet
 from hk_dashboard.rate_store import get_rate
 from hk_dashboard.sheets_client import SheetAccessError, fetch_hotel_sheet_raw
@@ -31,13 +31,23 @@ def load_all_hotel_shifts() -> LoadResult:
 
     for hotel, sheet_id in HOTEL_SHEETS.items():
         try:
-            formatted, unformatted = fetch_hotel_sheet_raw(sheet_id)
+            tabs = fetch_hotel_sheet_raw(sheet_id)
         except SheetAccessError as e:
             coverage[hotel] = {"max_date": None, "error": str(e), "rows": 0}
             continue
 
-        df, hotel_unmapped = parse_hotel_sheet(hotel, formatted, unformatted)
-        unmapped.extend(hotel_unmapped)
+        tab_frames = []
+        for _tab_title, formatted, unformatted in tabs:
+            tab_df, tab_unmapped = parse_hotel_sheet(hotel, formatted, unformatted)
+            unmapped.extend(tab_unmapped)
+            if not tab_df.empty:
+                tab_frames.append(tab_df)
+
+        df = (
+            pd.concat(tab_frames, ignore_index=True)
+            if tab_frames
+            else pd.DataFrame(columns=["hotel", "date", "raw_name", "employee", "name_flagged", "start", "end", "hours"])
+        )
 
         if df.empty:
             coverage[hotel] = {"max_date": None, "error": None, "rows": 0}
@@ -58,14 +68,31 @@ def load_all_hotel_shifts() -> LoadResult:
     return LoadResult(shifts=shifts, coverage=coverage, unmapped_names=unmapped)
 
 
+def _resolve_rate(rates_df: pd.DataFrame, employee: str, month: str) -> tuple[float | None, bool]:
+    """Returns (hourly_rate, is_external_flat_rate)."""
+    rate = get_rate(rates_df, employee, month)
+    if rate is not None:
+        return rate, False
+    external_rate = EXTERNAL_WORKER_RATES.get(employee.lower())
+    if external_rate is not None:
+        return external_rate, True
+    return None, False
+
+
 def attach_costs(shifts: pd.DataFrame, rates_df: pd.DataFrame) -> pd.DataFrame:
     if shifts.empty:
-        return shifts.assign(hourly_rate_eur=pd.Series(dtype=float), cost_eur=pd.Series(dtype=float))
+        return shifts.assign(
+            hourly_rate_eur=pd.Series(dtype=float),
+            cost_eur=pd.Series(dtype=float),
+            is_external_rate=pd.Series(dtype=bool),
+        )
 
     df = shifts.copy()
-    df["hourly_rate_eur"] = df.apply(
-        lambda r: get_rate(rates_df, r["employee"], r["month"]), axis=1
+    resolved = df.apply(
+        lambda r: _resolve_rate(rates_df, r["employee"], r["month"]), axis=1, result_type="expand"
     )
+    df["hourly_rate_eur"] = resolved[0]
+    df["is_external_rate"] = resolved[1]
     df["cost_eur"] = df["hours"] * df["hourly_rate_eur"]
     df["rate_missing"] = df["hourly_rate_eur"].isna()
     return df
@@ -102,6 +129,7 @@ def by_housekeeper(df: pd.DataFrame) -> pd.DataFrame:
         hourly_rate_eur=("hourly_rate_eur", "first"),
         cost_eur=("cost_eur", lambda s: s.sum(min_count=1)),
         rate_missing=("rate_missing", "any"),
+        is_external_rate=("is_external_rate", "any"),
     )
     g["avg_hours_per_day"] = (g["hours"] / g["days_worked"]).round(2)
     return g.sort_values(["employee", "month", "hotel"])

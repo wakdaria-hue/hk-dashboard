@@ -21,7 +21,7 @@ from datetime import date
 
 import pandas as pd
 
-from hk_dashboard.config import MONTH_NAMES_NL_EN, NAME_MAP
+from hk_dashboard.config import EXTERNAL_WORKER_RATES, MONTH_NAMES_NL_EN, NAME_MAP
 
 MERGED_PREFIX_RE = re.compile(r"^\s*\[merged\]\s*", re.IGNORECASE)
 DATE_RE = re.compile(r"^\s*(\d{1,2})-([A-Za-z]+)-(\d{4})\s*$")
@@ -88,6 +88,10 @@ def normalize_name(raw_name: str) -> tuple[str, bool]:
     key = cleaned.lower()
     if key in NAME_MAP:
         return NAME_MAP[key], False
+    if key in EXTERNAL_WORKER_RATES:
+        # Known external/agency worker - not a typo or new hire to chase down,
+        # just has no "Initials Surname" payroll identity. Keep their raw name.
+        return cleaned, False
     if INITIALS_SURNAME_RE.match(cleaned):
         return cleaned, False
     return cleaned, True
