@@ -28,6 +28,17 @@ def get_rate_store_id() -> str:
     return st.secrets["rate_store_spreadsheet_id"]
 
 
+def get_rates():
+    """Cached rate-store read (shares the same cache as get_dashboard_data()).
+
+    Use this instead of calling read_rate_store() directly on any page - an
+    uncached call fires on every single widget interaction (a Streamlit
+    rerun happens on every click, even just selecting a table row), which
+    burns through the Sheets API's per-minute quota fast.
+    """
+    return _cached_load_rates(get_rate_store_id())
+
+
 def get_dashboard_data():
     """Returns (LoadResult, rates_df, shifts_with_cost_df).
 

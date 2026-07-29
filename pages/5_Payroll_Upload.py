@@ -1,8 +1,9 @@
 import streamlit as st
 
-from hk_dashboard.data import clear_cache, get_rate_store_id
+from hk_dashboard.data import clear_cache, get_rate_store_id, get_rates
 from hk_dashboard.payroll_pdf import PayrollPdfError, extract_payroll_data, rows_to_preview_df
-from hk_dashboard.rate_store import clear_rate_store, delete_rate_rows, read_rate_store, upsert_rates
+from hk_dashboard.rate_store import clear_rate_store, delete_rate_rows, upsert_rates
+from hk_dashboard.sheets_client import SheetAccessError
 
 st.title("Payroll Upload")
 st.caption(
@@ -11,6 +12,12 @@ st.caption(
 )
 
 spreadsheet_id = get_rate_store_id()
+
+try:
+    current = get_rates()
+except SheetAccessError as e:
+    st.error(f"Can't reach the rate-history sheet right now: {e}\n\nTry again in a minute or two.")
+    st.stop()
 
 uploaded = st.file_uploader("Overzicht Loonkosten PDF", type=["pdf"])
 
@@ -55,9 +62,8 @@ if uploaded is not None:
         hide_index=True,
     )
 
-    existing = read_rate_store(spreadsheet_id)
-    if not existing.empty:
-        overlap = existing[existing["month"].isin(months_found)]
+    if not current.empty:
+        overlap = current[current["month"].isin(months_found)]
         if not overlap.empty:
             st.info(
                 f"{len(overlap)} existing rate-store row(s) for these months will be **overwritten** "
@@ -77,7 +83,6 @@ if uploaded is not None:
 
 st.divider()
 st.subheader("Current rate store")
-current = read_rate_store(spreadsheet_id)
 if current.empty:
     st.info("No payroll rates saved yet.")
 else:

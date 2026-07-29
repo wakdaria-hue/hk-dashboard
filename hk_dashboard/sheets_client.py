@@ -84,10 +84,21 @@ def fetch_hotel_sheet_raw(sheet_id: str) -> list[tuple[str, list[list[str]], lis
 
 
 def fetch_rate_store_worksheet(spreadsheet_id: str, worksheet_name: str) -> gspread.Worksheet:
-    """Open (creating if needed) a worksheet used as a persistent data store."""
-    client = _get_client()
-    sh = client.open_by_key(spreadsheet_id)
+    """Open (creating if needed) a worksheet used as a persistent data store.
+
+    Raises SheetAccessError on any API failure (e.g. a rate limit) so callers
+    can show a friendly message instead of crashing the whole page.
+    """
     try:
-        return sh.worksheet(worksheet_name)
-    except gspread.exceptions.WorksheetNotFound:
-        return sh.add_worksheet(title=worksheet_name, rows=1000, cols=10)
+        client = _get_client()
+        sh = client.open_by_key(spreadsheet_id)
+        try:
+            return sh.worksheet(worksheet_name)
+        except gspread.exceptions.WorksheetNotFound:
+            return sh.add_worksheet(title=worksheet_name, rows=1000, cols=10)
+    except gspread.exceptions.APIError as e:
+        raise SheetAccessError(f"Google Sheets API error: {e}") from e
+    except SheetAccessError:
+        raise
+    except Exception as e:  # noqa: BLE001 - surface any auth/network failure uniformly
+        raise SheetAccessError(f"Could not reach the rate-store sheet: {e}") from e
