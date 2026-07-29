@@ -2,7 +2,7 @@ import streamlit as st
 
 from hk_dashboard.data import clear_cache, get_rate_store_id
 from hk_dashboard.payroll_pdf import PayrollPdfError, extract_payroll_data, rows_to_preview_df
-from hk_dashboard.rate_store import read_rate_store, upsert_rates
+from hk_dashboard.rate_store import clear_rate_store, delete_rate_rows, read_rate_store, upsert_rates
 
 st.title("Payroll Upload")
 st.caption(
@@ -81,10 +81,48 @@ current = read_rate_store(spreadsheet_id)
 if current.empty:
     st.info("No payroll rates saved yet.")
 else:
-    st.dataframe(
-        current.sort_values(["month", "name"]).style.format(
-            {"hourly_rate_eur": "€{:.2f}", "netto_salary_eur": "€{:.2f}"}, na_rep="-"
-        ),
+    display = current.sort_values(["month", "name"]).reset_index(drop=True)
+    st.caption("Click a row (or drag across several) to select it, then delete below if it was added by mistake.")
+    event = st.dataframe(
+        display,
         use_container_width=True,
         hide_index=True,
+        on_select="rerun",
+        selection_mode="multi-row",
+        column_config={
+            "hourly_rate_eur": st.column_config.NumberColumn("hourly_rate_eur", format="€%.2f"),
+            "netto_salary_eur": st.column_config.NumberColumn("netto_salary_eur", format="€%.2f"),
+        },
+        key="rate_store_table",
     )
+
+    selected_positions = event.selection.rows
+    if selected_positions:
+        to_delete = display.iloc[selected_positions]
+        st.warning(f"⚠️ {len(to_delete)} row(s) selected for deletion:")
+        st.dataframe(
+            to_delete[["name", "month", "hourly_rate_eur", "netto_salary_eur", "source"]],
+            use_container_width=True,
+            hide_index=True,
+        )
+        confirm_selected = st.checkbox("Yes, delete these rows")
+        if st.button("🗑️ Delete selected rows", type="primary", disabled=not confirm_selected):
+            keys = list(zip(to_delete["name"], to_delete["month"]))
+            with st.spinner("Deleting from the rate-history Google Sheet..."):
+                delete_rate_rows(spreadsheet_id, keys)
+                clear_cache()
+            st.success(f"Deleted {len(keys)} row(s).")
+            st.rerun()
+
+    with st.expander("⚠️ Danger zone: clear the entire rate store"):
+        st.write(
+            "Removes every saved payroll rate and net salary for every month. "
+            "You'll need to re-upload payroll PDFs afterward to rebuild it."
+        )
+        confirm_all = st.text_input("Type CLEAR to confirm", value="", key="confirm_clear_all")
+        if st.button("🗑️ Clear entire rate store", disabled=(confirm_all != "CLEAR")):
+            with st.spinner("Clearing the rate-history Google Sheet..."):
+                clear_rate_store(spreadsheet_id)
+                clear_cache()
+            st.success("Rate store cleared.")
+            st.rerun()

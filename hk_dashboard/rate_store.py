@@ -111,12 +111,31 @@ def upsert_rates(
         merged = pd.concat([existing_keyed, new_keyed]).reset_index()
 
     merged = merged.sort_values(["name", "month"]).reset_index(drop=True)
+    _write_rate_store(spreadsheet_id, merged)
+    return merged
 
+
+def delete_rate_rows(spreadsheet_id: str, keys: list[tuple[str, str]]) -> pd.DataFrame:
+    """Remove specific (name, month) rows from the rate store. Returns the resulting DataFrame."""
+    existing = read_rate_store(spreadsheet_id)
+    if existing.empty or not keys:
+        return existing
+    remaining = existing[~existing.set_index(["name", "month"]).index.isin(keys)].reset_index(drop=True)
+    _write_rate_store(spreadsheet_id, remaining)
+    return remaining
+
+
+def clear_rate_store(spreadsheet_id: str) -> pd.DataFrame:
+    """Remove every row from the rate store (header stays). Returns the resulting empty DataFrame."""
+    empty = pd.DataFrame(columns=RATE_STORE_HEADER)
+    _write_rate_store(spreadsheet_id, empty)
+    return empty
+
+
+def _write_rate_store(spreadsheet_id: str, df: pd.DataFrame) -> None:
     ws = fetch_rate_store_worksheet(spreadsheet_id, RATE_STORE_WORKSHEET)
     ws.clear()
-    ws.update("A1", [RATE_STORE_HEADER] + _rows_for_sheet(merged))
-
-    return merged
+    ws.update("A1", [RATE_STORE_HEADER] + _rows_for_sheet(df))
 
 
 def _rows_for_sheet(df: pd.DataFrame) -> list[list[str]]:
