@@ -120,6 +120,21 @@ def by_week(df: pd.DataFrame) -> pd.DataFrame:
     return g.sort_values(["month", "week_number", "hotel"])
 
 
+def by_hotel_day(df: pd.DataFrame, month: str) -> pd.DataFrame:
+    """Hours + cost per hotel per day, scoped to one month ('YYYY-MM')."""
+    if df.empty:
+        return df
+    month_df = df[df["month"] == month]
+    if month_df.empty:
+        return month_df
+    g = month_df.groupby(["hotel", "date"], as_index=False).agg(
+        hours=("hours", "sum"),
+        cost_eur=("cost_eur", lambda s: s.sum(min_count=1)),
+        hours_without_rate=("hours", lambda s: s[month_df.loc[s.index, "rate_missing"]].sum()),
+    )
+    return g.sort_values(["date", "hotel"])
+
+
 def by_housekeeper(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
@@ -135,6 +150,62 @@ def by_housekeeper(df: pd.DataFrame) -> pd.DataFrame:
     return g.sort_values(["employee", "month", "hotel"])
 
 
+def by_housekeeper_week(df: pd.DataFrame, month: str) -> pd.DataFrame:
+    """Hours + cost per housekeeper per week, scoped to one month ('YYYY-MM')."""
+    if df.empty:
+        return df
+    month_df = df[df["month"] == month]
+    if month_df.empty:
+        return month_df
+    g = month_df.groupby(["employee", "hotel", "week_number", "week_label"], as_index=False).agg(
+        hours=("hours", "sum"),
+        days_worked=("date", "nunique"),
+        hourly_rate_eur=("hourly_rate_eur", "first"),
+        cost_eur=("cost_eur", lambda s: s.sum(min_count=1)),
+        rate_missing=("rate_missing", "any"),
+        is_external_rate=("is_external_rate", "any"),
+    )
+    return g.sort_values(["week_number", "employee", "hotel"])
+
+
+def by_housekeeper_day(df: pd.DataFrame, month: str) -> pd.DataFrame:
+    """Hours + cost per housekeeper per day, scoped to one month ('YYYY-MM')."""
+    if df.empty:
+        return df
+    month_df = df[df["month"] == month]
+    if month_df.empty:
+        return month_df
+    g = month_df.groupby(["employee", "hotel", "date"], as_index=False).agg(
+        hours=("hours", "sum"),
+        hourly_rate_eur=("hourly_rate_eur", "first"),
+        cost_eur=("cost_eur", lambda s: s.sum(min_count=1)),
+        rate_missing=("rate_missing", "any"),
+        is_external_rate=("is_external_rate", "any"),
+    )
+    return g.sort_values(["date", "employee", "hotel"])
+
+
+def attach_netto_salary(housekeeper_month_df: pd.DataFrame, rates_df: pd.DataFrame) -> pd.DataFrame:
+    """Add a netto_salary_eur column to a by_housekeeper() month-level table.
+
+    Net salary is a per-person-per-month payslip total, not something that
+    scales with hours the way the hourly rate does - so it's joined in here
+    from the rate store directly, only for the month-level view, rather than
+    computed via attach_costs()/shifts like the employer cost is.
+    """
+    if housekeeper_month_df.empty:
+        return housekeeper_month_df.assign(netto_salary_eur=pd.Series(dtype=float))
+    if rates_df.empty or "netto_salary_eur" not in rates_df.columns:
+        return housekeeper_month_df.assign(netto_salary_eur=pd.NA)
+
+    netto_lookup = rates_df.set_index(["name", "month"])["netto_salary_eur"]
+    df = housekeeper_month_df.copy()
+    df["netto_salary_eur"] = df.apply(
+        lambda r: netto_lookup.get((r["employee"], r["month"]), pd.NA), axis=1
+    )
+    return df
+
+
 def daily_person_matrix(df: pd.DataFrame, month: str, value: str = "cost_eur") -> pd.DataFrame:
     """Pivot: rows=employee, columns=date, values=cost_eur (or 'hours'), for one month ('YYYY-MM')."""
     if df.empty:
@@ -147,6 +218,29 @@ def daily_person_matrix(df: pd.DataFrame, month: str, value: str = "cost_eur") -
     )
     pivot.columns = [c.isoformat() for c in pivot.columns]
     return pivot
+
+
+def weekly_person_matrix(df: pd.DataFrame, month: str, value: str = "cost_eur") -> pd.DataFrame:
+    """Pivot: rows=employee, columns=week label, values=cost_eur (or 'hours'), for one month ('YYYY-MM')."""
+    if df.empty:
+        return pd.DataFrame()
+    month_df = df[df["month"] == month]
+    if month_df.empty:
+        return pd.DataFrame()
+    # Order columns by week_number rather than alphabetically by label.
+    week_order = month_df.drop_duplicates("week_number").sort_values("week_number")["week_label"].tolist()
+    pivot = month_df.pivot_table(
+        index="employee", columns="week_label", values=value, aggfunc="sum", fill_value=0
+    )
+    return pivot.reindex(columns=week_order)
+
+
+def monthly_person_matrix(df: pd.DataFrame, value: str = "cost_eur") -> pd.DataFrame:
+    """Pivot: rows=employee, columns=month ('YYYY-MM'), values=cost_eur (or 'hours'), across all loaded months."""
+    if df.empty:
+        return pd.DataFrame()
+    pivot = df.pivot_table(index="employee", columns="month", values=value, aggfunc="sum", fill_value=0)
+    return pivot.reindex(columns=sorted(pivot.columns))
 
 
 def trend_by_month(df: pd.DataFrame, hotel: str | None = None, employee: str | None = None) -> pd.DataFrame:

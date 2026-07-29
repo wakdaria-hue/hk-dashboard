@@ -66,7 +66,7 @@ EXTERNAL_WORKER_RATES = {
 # payroll rates. The spreadsheet ID itself is a Streamlit secret
 # (see secrets.toml.example) because it's created once per deployment.
 RATE_STORE_WORKSHEET = "rates"
-RATE_STORE_HEADER = ["name", "month", "hourly_rate_eur", "source", "upload_date"]
+RATE_STORE_HEADER = ["name", "month", "hourly_rate_eur", "netto_salary_eur", "source", "upload_date"]
 
 MONTH_NAMES_NL_EN = {
     # English month names as used in the HK sheets (e.g. "01-June-2026")

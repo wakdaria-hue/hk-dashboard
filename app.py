@@ -38,10 +38,9 @@ st.divider()
 st.subheader("Views")
 st.markdown(
     """
-- **Per Hotel** — hours + cost per hotel, per month, with filters.
-- **Per Week** — hours + cost per hotel, per Monday-start week (numbered 1-5, restarting each month).
-- **Per Housekeeper** — hours, days worked, avg hours/day, hourly rate, and cost per person.
-- **Daily Cost Heatmap** — a per-person, per-day cost matrix for a selected month.
+- **Per Hotel** — hours + cost per hotel, toggle between Month / Week (Monday-start, numbered 1-5, restarting each month) / Day.
+- **Per Housekeeper** — hours, hourly rate, cost, and (Month view only) net salary from payslip, per person, toggle between Month / Week / Day.
+- **Cost Heatmap by Person** — a per-person matrix, toggle between Month / Week / Day columns.
 - **Trends** — cost and hours over time, filterable by hotel and housekeeper.
 - **Payroll Upload** — upload a monthly "Overzicht Loonkosten" PDF; preview before saving to the rate store.
 - **Export** — download the current view, or the full dataset, as a styled Excel workbook.
