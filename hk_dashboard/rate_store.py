@@ -114,6 +114,17 @@ def upsert_rates(
 
     ws = fetch_rate_store_worksheet(spreadsheet_id, RATE_STORE_WORKSHEET)
     ws.clear()
-    ws.update("A1", [RATE_STORE_HEADER] + merged[RATE_STORE_HEADER].astype(str).values.tolist())
+    ws.update("A1", [RATE_STORE_HEADER] + _rows_for_sheet(merged))
 
     return merged
+
+
+def _rows_for_sheet(df: pd.DataFrame) -> list[list[str]]:
+    # Plain str(v) per value via itertuples (not Series.astype(str)/.values) -
+    # pandas' Arrow-backed string dtype (pandas 3.x) can leave NaN/pd.NA
+    # un-stringified, which then fails to JSON-encode for the Sheets API
+    # request (the same root cause as the earlier Excel-export width crash).
+    rows = []
+    for row in df[RATE_STORE_HEADER].itertuples(index=False, name=None):
+        rows.append(["" if pd.isna(v) else str(v) for v in row])
+    return rows
