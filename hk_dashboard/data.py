@@ -6,6 +6,8 @@ import streamlit as st
 
 from hk_dashboard.aggregations import LoadResult, attach_costs, load_all_hotel_shifts
 from hk_dashboard.rate_store import read_rate_store
+from hk_dashboard.self_report_store import read_self_reports
+from hk_dashboard.staff_store import read_staff
 
 
 @st.cache_data(ttl=600, show_spinner="Loading HK schedule data from Google Sheets...")
@@ -18,6 +20,18 @@ def _cached_load_rates(spreadsheet_id: str):
     return read_rate_store(spreadsheet_id)
 
 
+@st.cache_data(ttl=600, show_spinner="Loading staff list...")
+def _cached_load_staff(spreadsheet_id: str):
+    return read_staff(spreadsheet_id)
+
+
+@st.cache_data(ttl=30, show_spinner="Loading self-reported hours...")
+def _cached_load_self_reports(spreadsheet_id: str):
+    # Short TTL, unlike the 600s used elsewhere: the admin Hours Submission
+    # page explicitly needs fresher data than the rest of the dashboard.
+    return read_self_reports(spreadsheet_id)
+
+
 def get_rate_store_id() -> str:
     if "rate_store_spreadsheet_id" not in st.secrets:
         st.error(
@@ -26,6 +40,37 @@ def get_rate_store_id() -> str:
         )
         st.stop()
     return st.secrets["rate_store_spreadsheet_id"]
+
+
+def get_confirmation_spreadsheet_id() -> str:
+    if "confirmation_spreadsheet_id" not in st.secrets:
+        st.error(
+            "Missing secret `confirmation_spreadsheet_id`. Add it in "
+            "Streamlit Cloud's Settings -> Secrets (see README)."
+        )
+        st.stop()
+    return st.secrets["confirmation_spreadsheet_id"]
+
+
+def get_raw_shifts():
+    """Cached raw per-shift-row table (hotel, date, employee, start, end,
+    hours, ...) - ungated by payroll upload, unlike get_dashboard_data()."""
+    return _cached_load_shifts().shifts
+
+
+def get_staff():
+    """Cached staff-list read - see get_rates()'s docstring for why this
+    matters (an uncached call fires on every widget rerun)."""
+    return _cached_load_staff(get_confirmation_spreadsheet_id())
+
+
+def get_self_reports():
+    """Cached self-reports read (short TTL - see _cached_load_self_reports)."""
+    return _cached_load_self_reports(get_confirmation_spreadsheet_id())
+
+
+def clear_self_reports_cache():
+    _cached_load_self_reports.clear()
 
 
 def get_rates():
@@ -69,6 +114,8 @@ def get_dashboard_data():
 def clear_cache():
     _cached_load_shifts.clear()
     _cached_load_rates.clear()
+    _cached_load_staff.clear()
+    _cached_load_self_reports.clear()
 
 
 def render_coverage_sidebar(load_result: LoadResult) -> None:

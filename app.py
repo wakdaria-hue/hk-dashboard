@@ -44,6 +44,8 @@ st.markdown(
 - **Trends** — cost and hours over time, filterable by hotel and housekeeper.
 - **Payroll Upload** — upload a monthly "Overzicht Loonkosten" PDF; preview before saving to the rate store.
 - **Export** — download the current view, or the full dataset, as a styled Excel workbook.
+- **Staff Identity** — the list housekeepers pick themselves from on the login-free confirmation page.
+- **Hours Submission** — compares reception's hours against what housekeepers self-confirmed; the check-step before payroll submission.
 """
 )
 

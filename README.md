@@ -150,6 +150,53 @@ Streamlit Community Cloud deploys from a GitHub repository.
 
 ---
 
+## Step 7 - HK Hours Self-Confirmation (optional second app)
+
+A login-free page where housekeepers confirm (or dispute) the hours
+reception logged for them each day, feeding a new **Hours Submission**
+admin tab used as a check-step before the monthly payroll submission.
+
+**Why a second app:** this main dashboard is Private with a Google-account
+allow-list (Step 6) - housekeepers have no Google accounts and can't be on
+it. The confirmation page ships as `confirm/confirm_app.py`, deployed as its
+**own, separate, Public** Streamlit Community Cloud app from this same
+GitHub repo, so it's reachable with no login at all. It deliberately lives
+in its own `confirm/` subfolder rather than the repo root: Streamlit treats
+every file under `pages/` as a directly-reachable URL for whichever app it's
+a sibling of, sidebar link or not - if the confirm app sat next to this
+dashboard's `pages/` folder, admin-only pages (Staff Identity's birthdates,
+Hours Submission's dispute data) would be reachable with no login on the
+confirm app's public URL.
+
+1. **Create a second Google Sheet** (separate from the rate-history one),
+   e.g. `HK Hours Confirmation`. Copy its Sheet ID from the URL.
+2. **Share it** with the same service account email from Step 1, role
+   **Editor** (same account already used for the rate-history sheet -
+   nothing in `confirm_app.py` ever touches rate-store data, but note that
+   this means the public app's secrets do carry a credential that also has
+   edit rights on the payroll rate sheet; accepted here for simplicity
+   rather than creating a second, more narrowly-scoped service account).
+3. Add `confirmation_spreadsheet_id` to **both** this dashboard's secrets
+   (local `secrets.toml` and its Streamlit Cloud Settings -> Secrets) **and**
+   to the new confirm-app deployment's secrets in the next step.
+4. **Deploy `confirm/confirm_app.py` as a second Streamlit Cloud app**: on
+   [share.streamlit.io](https://share.streamlit.io), **Create app** -> pick
+   this same repo, branch `main`, main file path `confirm/confirm_app.py`.
+   Leave it
+   **Public** (Settings -> Sharing) - that's the point. Paste its secrets
+   (the `[gcp_service_account]` block plus `confirmation_spreadsheet_id`
+   only - it doesn't need `rate_store_spreadsheet_id`).
+5. **Add staff**: back in this main (private) dashboard, open the new
+   **Staff Identity** page and add each housekeeper (name is picked from a
+   dropdown of real shift data, so it always matches reception's spelling)
+   with their hotel and birthdate.
+6. **Print QR codes**: run `python scripts/generate_qr_codes.py <your confirm
+   app's URL>` locally - it writes one PNG per hotel
+   (`https://<url>/?hotel=VGH` etc.) to print and place at each hotel.
+7. Check the new **Hours Submission** page here in the main dashboard each
+   month before submitting hours to loonstrookgigant - it flags disputed
+   days and mismatches over 15 minutes.
+
 ## Monthly workflow
 
 1. Each month, download the new "Overzicht Loonkosten" PDF from the payroll

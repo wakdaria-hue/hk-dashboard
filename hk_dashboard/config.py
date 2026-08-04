@@ -80,3 +80,36 @@ MONTH_NAMES_DUTCH = {
     "januari": 1, "februari": 2, "maart": 3, "april": 4, "mei": 5, "juni": 6,
     "juli": 7, "augustus": 8, "september": 9, "oktober": 10, "november": 11, "december": 12,
 }
+
+# --- HK Hours Self-Confirmation ---------------------------------------------
+# Worksheet tabs live in a separate spreadsheet from the rate-history one
+# (id in the `confirmation_spreadsheet_id` secret) - deliberately kept apart
+# from payroll/salary data since the login-free confirm_app.py shares the
+# same service account credential.
+CONFIRMATION_STAFF_WORKSHEET = "staff"
+CONFIRMATION_SELF_REPORTS_WORKSHEET = "self_reports"
+
+STAFF_HEADER = ["name", "hotel", "birthdate", "active"]
+SELF_REPORTS_HEADER = [
+    "date", "hotel", "name",
+    "reception_hours_shown", "reception_hours_numeric",
+    "status",
+    "disputed_start", "disputed_end", "disputed_hours_numeric",
+    "confirmed_at",
+]
+
+# Admin "Hours submission" comparison: a self-reported vs reception hours gap
+# above this many minutes gets highlighted (Disputed rows are always
+# highlighted regardless of size).
+MISMATCH_THRESHOLD_MINUTES = 15
+
+# Housekeeper birthdate check (confirm_app.py): wrong attempts before a
+# short cooldown locks that (hotel, name) out.
+LOCKOUT_MAX_ATTEMPTS = 3
+LOCKOUT_MINUTES = 15
+
+# Streamlit Community Cloud runs on UTC; every "today"/"is it the last day
+# of the month" check for this feature must go through hk_dashboard.timeutil
+# rather than bare date.today(), or it'll be off by a day around the
+# CET/CEST boundary.
+APP_TIMEZONE = "Europe/Amsterdam"
