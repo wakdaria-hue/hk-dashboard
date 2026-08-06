@@ -197,6 +197,84 @@ confirm app's public URL.
    month before submitting hours to loonstrookgigant - it flags disputed
    days and mismatches over 15 minutes.
 
+---
+
+## Step 8 - Mobile Host Hours Confirmation (third, independent app)
+
+A login-free, **monthly** page where Mobile Hosts confirm (or dispute) their
+shift count and hours for the current month, reading directly from the
+Mobile Host weekly schedule spreadsheet (not the HK sheets). Built
+2026-08-06, structurally the same as Step 7's HK confirm app (birthdate
+identity check, upsert-based confirmation sheet) but otherwise independent -
+different schedule format, different spreadsheet, different app.
+
+**Why monthly, not daily:** Mobile Hosts' hours are submitted to payroll
+once a month, not per shift, so the gate is calendar-day based
+(`mh_dashboard/config.py`):
+- **Day 1-19:** too early - nothing to confirm yet.
+- **Day 20-23:** the confirm window - shows shift count, total hours, and
+  every date worked; "Yes, correct" / "No, something is wrong" (pick which
+  date(s) look wrong + a comment).
+- **Day 24+:** read-only - hours are already being processed for payroll.
+  Still shows what was submitted (or, if they never confirmed, what the
+  schedule currently shows) so they can check it.
+
+**Why one shared QR code, not one per hotel:** Mobile Hosts float between
+locations rather than being assigned to one (unlike housekeepers), so unlike
+Step 7 there's no hotel-selection step at all.
+
+**The schedule format is genuinely messy** - hand-maintained, with an
+occasional second unlabeled grid sitting to the right of the real one in the
+same tab, and placeholder tokens (`PH mobile`, `Mobile team`) mixed into
+shift cells. `mh_dashboard/parser.py` handles this by matching row content
+(the shift-label text, the date-header text) rather than fixed column
+positions, and only ever takes the *first* match within the left grid's own
+columns - which is what makes it naturally ignore that second grid. This was
+validated 2026-08-06 against live data (the real Sheets API, not a text
+export) for June-September 2026: zero missing days, zero duplicate
+shift-labels-per-day across all four tabs. Two real quirks that validation
+pass caught (see `parser.py`'s docstring for detail): a stray date string
+occasionally bleeding in from the second grid's own header, and one week
+using abbreviated month names ("3 Aug" instead of "August 3"). Both are
+handled now, but if a future month's layout drifts further, re-run the same
+kind of check (fetch the tab, run `parse_month_tab`, check every day of the
+month got exactly the shifts you'd expect) before trusting a new anomaly.
+
+**Strict about names, on purpose:** a raw schedule name that isn't in
+`employee_access` is never guessed at or silently dropped - it's logged to
+the `mapping_issues` tab (with the raw name and which month tab it came
+from) and simply excluded from everyone's totals until you add it.
+
+1. **Share the Mobile Host schedule sheet** (read-only) with the service
+   account email from Step 1 - role **Viewer**. (This spreadsheet is owned
+   by `ariboh@gmail.com`, not this project's Google account.)
+2. A second Google Sheet, **`MH Hours Confirmation`**, was created for this
+   (id in `mh_confirmation_spreadsheet_id`) - **share it** with the same
+   service account, role **Editor**. Its three tabs (`employee_access`,
+   `confirmations`, `mapping_issues`) are created automatically on first
+   app run, the same way HK's `staff`/`self_reports` tabs are.
+3. Add `mh_confirmation_spreadsheet_id` to the new confirm-app deployment's
+   secrets in the next step (it doesn't need `rate_store_spreadsheet_id` or
+   `confirmation_spreadsheet_id` - keep it scoped to just this feature).
+4. **Deploy `mobile_hosts/confirm_app.py` as a third Streamlit Cloud app**:
+   same repo, branch `main`, main file path `mobile_hosts/confirm_app.py`.
+   Public (Settings -> Sharing). Paste its secrets (`[gcp_service_account]`
+   plus `mh_confirmation_spreadsheet_id` only).
+5. **Fill in `employee_access`** (in the `MH Hours Confirmation` sheet):
+   one row per known raw schedule spelling, columns `schedule_name` (exactly
+   as it appears in the schedule, e.g. `the queen`), `full_name` (payroll
+   name, e.g. `C Resanello`), `birthdate` (`YYYY-MM-DD`), `active`
+   (`TRUE`/`FALSE`) - same birthdate-upload workflow as HK's `staff` tab,
+   just typed directly into the sheet since there's no admin page for this
+   yet.
+6. **Print the QR code**: run
+   `python scripts/generate_mh_qr_code.py <your mh confirm app's URL>`
+   locally - it writes one A4-ready PNG (`qr_codes/mobile_host_confirm.png`)
+   with an instruction line underneath, ready to print and put up.
+7. Check the `mapping_issues` tab in the `MH Hours Confirmation` sheet
+   periodically - any raw schedule name not yet in `employee_access` shows
+   up there instead of being silently dropped.
+
 ## Monthly workflow
 
 1. Each month, download the new "Overzicht Loonkosten" PDF from the payroll

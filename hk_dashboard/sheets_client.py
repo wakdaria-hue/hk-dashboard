@@ -83,6 +83,30 @@ def fetch_hotel_sheet_raw(sheet_id: str) -> list[tuple[str, list[list[str]], lis
         raise SheetAccessError(f"Could not read sheet: {e}") from e
 
 
+def fetch_worksheet_values(spreadsheet_id: str, worksheet_title: str) -> list[list[str]]:
+    """Fetch one tab's raw grid (FORMATTED_VALUE) by exact title.
+
+    Generic - not HK-specific - used by mh_dashboard.parser to read a single
+    month tab from the Mobile Host schedule spreadsheet. Returns [] if the
+    tab doesn't exist yet (e.g. next month's tab hasn't been created), rather
+    than raising, since a missing tab is an expected/normal state here.
+    """
+    try:
+        client = _get_client()
+        sh = client.open_by_key(spreadsheet_id)
+        try:
+            ws = sh.worksheet(worksheet_title)
+        except gspread.exceptions.WorksheetNotFound:
+            return []
+        return ws.get_all_values()
+    except gspread.exceptions.APIError as e:
+        raise SheetAccessError(f"Google Sheets API error: {e}") from e
+    except SheetAccessError:
+        raise
+    except Exception as e:  # noqa: BLE001 - surface any auth/network failure uniformly
+        raise SheetAccessError(f"Could not read sheet: {e}") from e
+
+
 def fetch_rate_store_worksheet(spreadsheet_id: str, worksheet_name: str) -> gspread.Worksheet:
     """Open (creating if needed) a worksheet used as a persistent data store.
 
