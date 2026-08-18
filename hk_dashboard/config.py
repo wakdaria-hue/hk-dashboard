@@ -46,6 +46,9 @@ NAME_MAP = {
     # their first payroll PDF (July 2026) is uploaded.
     "faith": "F Ugbena",
     "leila": "R Nistorova",
+    "hammond": "E A Hammond",
+    "andrian": "A Montalban Arroyo",
+    "adrian": "A Montalban Arroyo",
 }
 
 # First names of external/agency staff who worked shifts but are never on the
