@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import pandas as pd
 
+from hk_dashboard.dateparse import parse_birthdate
 from hk_dashboard.sheets_client import fetch_rate_store_worksheet
 from mh_dashboard.config import EMPLOYEE_ACCESS_HEADER, EMPLOYEE_ACCESS_WORKSHEET
 
@@ -40,8 +41,11 @@ def active_full_names(df: pd.DataFrame) -> list[str]:
 
 
 def birthdate_for(df: pd.DataFrame, full_name: str) -> str | None:
+    """ISO `YYYY-MM-DD`, regardless of the format the cell was typed in -
+    hand-typed dates render in the sheet's locale format (DD-MM-YYYY for
+    Netherlands), not ISO. See hk_dashboard.dateparse."""
     match = df[df["full_name"].astype(str).str.strip() == full_name]
     if match.empty:
         return None
-    value = str(match.iloc[0]["birthdate"]).strip()
-    return value or None
+    parsed = parse_birthdate(match.iloc[0]["birthdate"])
+    return parsed.isoformat() if parsed else None

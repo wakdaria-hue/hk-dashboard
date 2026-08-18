@@ -12,6 +12,7 @@ from datetime import date
 import pandas as pd
 
 from hk_dashboard.config import STAFF_HEADER, CONFIRMATION_STAFF_WORKSHEET
+from hk_dashboard.dateparse import parse_birthdate
 from hk_dashboard.sheets_client import fetch_rate_store_worksheet
 
 
@@ -21,6 +22,11 @@ def _ensure_header(ws) -> None:
         ws.update("A1", [STAFF_HEADER])
 
 
+def _normalized_birthdate(raw) -> str:
+    parsed = parse_birthdate(raw)
+    return parsed.isoformat() if parsed else ""
+
+
 def read_staff(spreadsheet_id: str) -> pd.DataFrame:
     ws = fetch_rate_store_worksheet(spreadsheet_id, CONFIRMATION_STAFF_WORKSHEET)
     _ensure_header(ws)
@@ -28,6 +34,11 @@ def read_staff(spreadsheet_id: str) -> pd.DataFrame:
     df = pd.DataFrame(values, columns=STAFF_HEADER)
     if not df.empty:
         df["active"] = df["active"].astype(str).str.lower().isin(["true", "1", "yes"])
+        # Normalize to ISO regardless of how the cell got its value - the
+        # app always writes ISO, but a birthdate typed by hand straight into
+        # the sheet renders in the sheet's locale format instead (see
+        # dateparse.py).
+        df["birthdate"] = df["birthdate"].apply(_normalized_birthdate)
     return df
 
 
