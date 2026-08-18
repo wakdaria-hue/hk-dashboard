@@ -72,3 +72,13 @@ LOCKED_WINDOW_FIRST_DAY = 24
 # Birthdate check lockout (reuses hk_dashboard.lockout, keyed by a constant
 # "scope" in place of HK's per-hotel key - see mobile_hosts/confirm_app.py).
 LOCKOUT_SCOPE = "mobile-host"
+
+# Mobile Hosts on a fixed weekly-hours contract rather than paid per logged
+# shift - their real schedule entries are too sparse to reflect what they
+# actually work, so their monthly total is computed from this instead of
+# monthly_summary's shift count (see mobile_hosts/confirm_app.py). Confirmed
+# with Daria 2026-08-18: only P Mansouri - M Shukry's schedule data is real
+# and already exceeds this baseline, so he stays on real shift-based hours.
+FIXED_WEEKLY_HOURS = {
+    "P Mansouri": 40.0,
+}

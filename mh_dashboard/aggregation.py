@@ -2,6 +2,7 @@
 records up into a per-person monthly summary."""
 from __future__ import annotations
 
+import calendar
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
@@ -77,3 +78,13 @@ def monthly_summary(resolved_shifts: list[ResolvedShift]) -> dict[str, PersonMon
         )
         for full_name, shifts in shifts_by_person.items()
     }
+
+
+def weeks_touching_month(year: int, month: int) -> int:
+    """Count of distinct Mon-Sun ISO weeks that touch any day of this
+    calendar month - the basis for converting a fixed weekly-hours contract
+    (FIXED_WEEKLY_HOURS) into a monthly total. Usually 4, sometimes 5,
+    depending on where the month's start/end fall relative to Monday."""
+    days_in_month = calendar.monthrange(year, month)[1]
+    iso_weeks = {date(year, month, day).isocalendar()[:2] for day in range(1, days_in_month + 1)}
+    return len(iso_weeks)

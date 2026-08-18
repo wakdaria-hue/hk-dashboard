@@ -23,12 +23,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, fo
 from hk_dashboard.lockout import check_lockout, record_failed_attempt, reset_attempts
 from hk_dashboard.sheets_client import SheetAccessError, fetch_worksheet_values
 from hk_dashboard.timeutil import now_amsterdam, today_amsterdam
-from mh_dashboard.aggregation import monthly_summary, resolve_shifts
+from mh_dashboard.aggregation import monthly_summary, resolve_shifts, weeks_touching_month
 from mh_dashboard.confirmation_store import ConfirmationWriteError, read_confirmations, upsert_confirmation
 from mh_dashboard.config import (
     CONFIRM_WINDOW_FIRST_DAY,
     CONFIRM_WINDOW_LAST_DAY,
     EARLY_WINDOW_LAST_DAY,
+    FIXED_WEEKLY_HOURS,
     LOCKOUT_SCOPE,
     MH_SCHEDULE_SPREADSHEET_ID,
 )
@@ -53,6 +54,20 @@ def _month_tab_for(d: date) -> str:
 
 def _fmt_date(d: date) -> str:
     return f"{d.day} {_MONTH_NAMES[d.month - 1][:3]}"
+
+
+def _person_month(name: str, summary: dict, today: date) -> tuple[int, float, list[date]]:
+    """(shift_count, total_hours, dates_worked) for this person this month -
+    total_hours is overridden for anyone in FIXED_WEEKLY_HOURS, since their
+    real schedule entries don't reflect their actual contracted hours."""
+    person = summary.get(name)
+    shift_count = person.shift_count if person else 0
+    total_hours = person.total_hours if person else 0.0
+    dates_worked = person.dates_worked if person else []
+    fixed_weekly = FIXED_WEEKLY_HOURS.get(name)
+    if fixed_weekly is not None:
+        total_hours = fixed_weekly * weeks_touching_month(today.year, today.month)
+    return shift_count, total_hours, dates_worked
 
 
 def gating_status(today: date) -> str:
@@ -180,20 +195,22 @@ if state["step"] == "hours":
     except SheetAccessError:
         st.error("Can't load this month's schedule right now — please try again in a minute.")
         st.stop()
-    person = summary.get(name)
-    shift_count = person.shift_count if person else 0
-    total_hours = person.total_hours if person else 0.0
-    dates_worked = person.dates_worked if person else []
+    shift_count, total_hours, dates_worked = _person_month(name, summary, today)
+    is_fixed_hours = name in FIXED_WEEKLY_HOURS
 
     if status == "confirm":
-        if shift_count == 0:
+        if shift_count == 0 and not is_fixed_hours:
             st.info("0 shifts, nothing to confirm. If this is not true, contact Chiara.")
             st.stop()
 
-        st.metric("Shifts this month", shift_count)
-        st.metric("Total hours", f"{total_hours:.0f}h")
-        st.write("**Dates you worked:**")
-        st.write(", ".join(_fmt_date(d) for d in dates_worked))
+        if is_fixed_hours:
+            st.metric("Total hours", f"{total_hours:.0f}h")
+            st.caption("You're on a fixed 40h/week schedule.")
+        else:
+            st.metric("Shifts this month", shift_count)
+            st.metric("Total hours", f"{total_hours:.0f}h")
+            st.write("**Dates you worked:**")
+            st.write(", ".join(_fmt_date(d) for d in dates_worked))
 
         c1, c2 = st.columns(2)
         if c1.button("✅ Yes, this is correct", type="primary", use_container_width=True):
@@ -216,7 +233,7 @@ if state["step"] == "hours":
 
     if status == "locked":
         st.warning("Your hours are already being processed for payroll. Your payslip is coming — hold tight.")
-        if shift_count == 0:
+        if shift_count == 0 and not is_fixed_hours:
             st.info("0 shifts, nothing on file. If this is not true, contact Chiara.")
             st.stop()
 
@@ -233,21 +250,26 @@ if state["step"] == "hours":
                 record = match.iloc[0]
 
         if record is not None:
-            st.metric("Shifts submitted", int(record["shift_count"]))
+            if not is_fixed_hours:
+                st.metric("Shifts submitted", int(record["shift_count"]))
             st.metric("Total hours submitted", f"{float(record['total_hours']):.0f}h")
             st.caption(f"Status: {record['status']}")
             submitted_dates = str(record["dates_worked"] or "")
-            if submitted_dates:
+            if submitted_dates and not is_fixed_hours:
                 parsed = [date.fromisoformat(s.strip()) for s in submitted_dates.split(",") if s.strip()]
                 st.write("**Dates submitted:**")
                 st.write(", ".join(_fmt_date(d) for d in parsed))
             if record["status"] == "Disputed" and record["comment"]:
                 st.caption(f"Your note: {record['comment']}")
         else:
-            st.metric("Shifts this month", shift_count)
-            st.metric("Total hours", f"{total_hours:.0f}h")
-            st.write("**Dates worked:**")
-            st.write(", ".join(_fmt_date(d) for d in dates_worked))
+            if is_fixed_hours:
+                st.metric("Total hours", f"{total_hours:.0f}h")
+                st.caption("You're on a fixed 40h/week schedule.")
+            else:
+                st.metric("Shifts this month", shift_count)
+                st.metric("Total hours", f"{total_hours:.0f}h")
+                st.write("**Dates worked:**")
+                st.write(", ".join(_fmt_date(d) for d in dates_worked))
             st.caption("You didn't confirm these during the window — contact Daria if this doesn't look right.")
         st.stop()
 
@@ -258,10 +280,7 @@ if state["step"] == "dispute":
     except SheetAccessError:
         st.error("Can't load this month's schedule right now — please try again in a minute.")
         st.stop()
-    person = summary.get(name)
-    shift_count = person.shift_count if person else 0
-    total_hours = person.total_hours if person else 0.0
-    dates_worked = person.dates_worked if person else []
+    shift_count, total_hours, dates_worked = _person_month(name, summary, today)
 
     st.subheader("Which date(s) are wrong?")
     st.caption("Uncheck any date that's wrong, or add one that's missing, then tell us what happened.")
