@@ -10,7 +10,7 @@ from datetime import date
 import pandas as pd
 
 from mh_dashboard.config import SHIFT_HOURS
-from mh_dashboard.parser import ShiftRecord, UnmappedName
+from mh_dashboard.parser import ShiftRecord, UnmappedName, parse_tab_title
 
 
 @dataclass
@@ -38,6 +38,10 @@ def resolve_shifts(
     excluded from every person's totals since there's no one to attribute
     them to yet.
     """
+    year_month = parse_tab_title(month_tab)
+    if year_month is not None:
+        records = [r for r in records if (r.date.year, r.date.month) == year_month]
+        
     if employee_access_df.empty:
         lookup: dict[str, str] = {}
     else:
