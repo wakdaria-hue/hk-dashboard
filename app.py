@@ -46,18 +46,31 @@ st.markdown(
 - **Export** — download the current view, or the full dataset, as a styled Excel workbook.
 - **Staff Identity** — the list housekeepers pick themselves from on the login-free confirmation page.
 - **Hours Submission** — compares reception's hours against what housekeepers self-confirmed; the check-step before payroll submission.
+- **Occupancy Forecast Upload** — upload Mews "Availability report" exports; preview before saving.
+- **Cost Forecast** — predicted rooms, hours, cost and staffing for future dates, with the historical baseline that produced them.
 """
 )
 
 st.divider()
-with st.expander("Phase 2 (not built): cost forecasting"):
+with st.expander("How the cost forecast works (Phase 2)"):
     st.markdown(
         """
-A future phase could forecast cleaning cost using predicted HK hours combined
-with reservation/occupancy data from Mews (via its Connector API). This isn't
-built yet — no Mews API credentials exist for this project. The data model
-here (per-hotel, per-day shift records with hours and cost) is intentionally
-kept granular so a forecast view could be added later without reshaping
-existing data.
+Forecasting is **manual-upload based**, not a live Mews connection — there are
+still no Mews API credentials for this project, so you export an "Availability
+report" from Mews and upload it, the same way payroll comes in as a PDF.
+
+1. Rooms to clean for a day = **departures + stayovers** (checkouts needing a
+   full clean, plus occupied rooms needing a refresh). Not "occupied", which
+   undercounts a room that checks out and checks in again the same day.
+2. Predicted hours = those rooms × that hotel's historical **minutes per
+   room**, measured over a trailing window of actuals.
+3. Predicted cost = those hours × that hotel's **blended hourly rate**
+   (weighted by hours actually worked, not an average of listed rates).
+
+Both historical figures come only from months whose payroll PDF has been
+uploaded, so the hours and the rate they're paired with always come from the
+same closed-out months. Anything forecasted is labelled as such and shows the
+date its Mews export was generated — later dates keep filling up with new
+reservations, so a forecast months out is a floor, not a settled number.
 """
     )

@@ -275,6 +275,83 @@ from) and simply excluded from everyone's totals until you add it.
    periodically - any raw schedule name not yet in `employee_access` shows
    up there instead of being silently dropped.
 
+---
+
+## Step 9 - Cost forecasting from Mews occupancy (Phase 2)
+
+Forecasts predicted cleaning hours, cost and staffing for **future** dates,
+from a Mews export you upload - the same manual-upload shape as payroll,
+because there's still no Mews API connection for this project.
+
+Two new pages, both in the private main dashboard:
+**Occupancy Forecast Upload** (admin) and **Cost Forecast** (the view).
+
+**No setup needed.** Occupancy is stored in a new `occupancy` tab of the same
+rate-history spreadsheet from Step 2, which the service account can already
+write to - no new sheet, no new secret, no new sharing step. The tab is
+created automatically on first upload.
+
+### How to use it
+
+1. In Mews, export an **Availability report** as `.xlsx`, one per hotel.
+   Export **both**:
+   - a **past** range (e.g. the last 2-3 months) - this calibrates the
+     forecast, and without it there's nothing to forecast *from*;
+   - a **future** range - this is what gets forecasted.
+2. Dashboard -> **Occupancy Forecast Upload** -> drop in one or several files
+   at once -> check each preview -> **Save**. Upsert on hotel + date, so
+   re-uploading a fresher export for a range already stored replaces those
+   days rather than duplicating them.
+3. Dashboard -> **Cost Forecast**. Check the **Baseline assumptions** table
+   at the top before trusting the numbers below it, then use the
+   Month / Week / Day toggle as on the other pages.
+
+The hotel is detected automatically from the export's `Enterprise` field
+(Mews' full hotel name) via `MEWS_ENTERPRISE_TO_HOTEL` in
+`hk_dashboard/config.py`. Only "Vondel Garden Hotel" -> VGH is known so far;
+the first time you upload another hotel's export the page will ask which
+hotel it is and show you the exact name to add to that map.
+
+### What the numbers mean
+
+- **Rooms to clean** = `departures + stayovers` for that day - checkouts
+  needing a full clean, plus occupied rooms needing a refresh. Validated
+  against real VGH data. Deliberately *not* `Occupied`, which undercounts a
+  day where a room checks out and a new guest checks in.
+- **Predicted hours** = rooms × that hotel's historical **minutes per room**.
+- **Predicted cost** = predicted hours × that hotel's **blended hourly rate**
+  (total cost ÷ total hours over the window, so it's weighted by hours
+  actually worked rather than averaging the listed rates).
+- Both historical figures are computed per hotel over a trailing window you
+  can change on the page (60 / 90 / 180 / 365 days, or all history), and both
+  are **payroll-gated** - only months whose "Overzicht Loonkosten" PDF has
+  been uploaded contribute, so the minutes-per-room figure and the rate it's
+  paired with always come from the same closed-out months. Only days that
+  have *both* occupancy and hours can calibrate anything; the page shows how
+  many days actually matched.
+- **Minutes per room is team-wide, and that's a real limitation.** On most
+  days several housekeepers work the same rooms and only a per-person daily
+  hours total is recorded, so there is no reliable way to attribute rooms to
+  people. (A regression to split multi-worker days was tried on VGH's data
+  and fit near-randomly - too few people repeating across too few team
+  combinations. Don't rebuild that.)
+- **Minutes per room (solo days)** is the same ratio measured only on days
+  where exactly one person worked and therefore cleaned every room alone -
+  a genuine measure of one person's throughput. On VGH it comes out around
+  **18 min/room** against a team-wide **32 min/room**, i.e. a team day
+  carries real overhead. It's used for the staffing estimate only, never for
+  the cost forecast.
+- **Staffing estimate** is explicitly a rough first pass: predicted work ÷
+  that hotel's typical shift length, giving a **count of shifts needed**, not
+  named people. It lives behind a swappable interface
+  (`hk_dashboard/staffing.py`, `estimate_shifts()`) so a better method can
+  replace it once per-room, per-person data exists - don't wire a new
+  assumption into the page itself.
+- Everything forecasted is labelled **Forecasted** and shows the date its
+  Mews export was generated. A future date only reflects the bookings on the
+  books at that moment, so a forecast months out is a floor, not a settled
+  number - re-upload a fresher export closer to the time.
+
 ## Monthly workflow
 
 1. Each month, download the new "Overzicht Loonkosten" PDF from the payroll
@@ -285,6 +362,11 @@ from) and simply excluded from everyone's totals until you add it.
    than duplicating them, so it's safe to re-upload a cumulative export.
 3. Everything else (hours, weeks, trends) updates automatically from the
    live Google Sheets - no manual step needed for that part.
+4. If you use the forecast: export a fresh Mews **Availability report** for
+   the month just closed (so it joins the calibration history) and for the
+   months ahead, and upload both on **Occupancy Forecast Upload**. Doing this
+   monthly keeps the baseline current; the trailing window updates on its own
+   as new data arrives.
 
 ## Adding a new housekeeper's nickname mapping
 
@@ -293,14 +375,14 @@ If the sidebar flags an unmapped name, add it to `NAME_MAP` in
 payroll), then redeploy (push the change to GitHub - Streamlit Cloud
 redeploys automatically).
 
-## Phase 2 (not built): cost forecasting
+## Still not built: a live Mews connection
 
-A future phase could forecast cleaning cost using predicted HK hours
-combined with reservation/occupancy data from Mews, via its Connector API.
-This isn't built - no Mews API credentials exist yet for this project. The
-data model here (per-hotel, per-day shift records with hours and cost) is
-kept granular enough that a forecast view could be added later without
-reshaping existing data.
+Phase 2's forecasting (Step 9) works off manually uploaded Mews exports. A
+live Mews Connector API connection would remove that upload step, but no Mews
+API credentials exist for this project yet. If they ever do, the swap is
+contained: replace `hk_dashboard/availability_xlsx.py`'s parse step with an
+API fetch that returns the same per-day departures/stayovers rows, and the
+occupancy store, baseline and forecast code above it work unchanged.
 
 ## Known open item
 

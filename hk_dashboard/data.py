@@ -5,6 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from hk_dashboard.aggregations import LoadResult, attach_costs, load_all_hotel_shifts
+from hk_dashboard.occupancy_store import read_occupancy_store
 from hk_dashboard.rate_store import read_rate_store
 from hk_dashboard.self_report_store import read_self_reports
 from hk_dashboard.staff_store import read_staff
@@ -30,6 +31,11 @@ def _cached_load_self_reports(spreadsheet_id: str):
     # Short TTL, unlike the 600s used elsewhere: the admin Hours Submission
     # page explicitly needs fresher data than the rest of the dashboard.
     return read_self_reports(spreadsheet_id)
+
+
+@st.cache_data(ttl=600, show_spinner="Loading uploaded occupancy data...")
+def _cached_load_occupancy(spreadsheet_id: str):
+    return read_occupancy_store(spreadsheet_id)
 
 
 def get_rate_store_id() -> str:
@@ -84,6 +90,15 @@ def get_rates():
     return _cached_load_rates(get_rate_store_id())
 
 
+def get_occupancy():
+    """Cached occupancy-store read (uploaded Mews figures, past and future).
+
+    Lives in its own tab of the rate-store spreadsheet, so it shares that
+    sheet's ID - see get_rates()' docstring for why this must stay cached.
+    """
+    return _cached_load_occupancy(get_rate_store_id())
+
+
 def get_dashboard_data():
     """Returns (LoadResult, rates_df, shifts_with_cost_df).
 
@@ -116,6 +131,7 @@ def clear_cache():
     _cached_load_rates.clear()
     _cached_load_staff.clear()
     _cached_load_self_reports.clear()
+    _cached_load_occupancy.clear()
 
 
 def render_coverage_sidebar(load_result: LoadResult) -> None:

@@ -71,6 +71,37 @@ EXTERNAL_WORKER_RATES = {
 RATE_STORE_WORKSHEET = "rates"
 RATE_STORE_HEADER = ["name", "month", "hourly_rate_eur", "netto_salary_eur", "source", "upload_date"]
 
+# --- Phase 2: occupancy forecast -------------------------------------------
+# Occupancy lives in its own tab of the SAME spreadsheet as the rate store
+# (rate_store_spreadsheet_id) - the service account already has Editor there,
+# so this needs no new secret and no new sharing step.
+OCCUPANCY_WORKSHEET = "occupancy"
+OCCUPANCY_HEADER = [
+    "hotel", "date", "departures", "stayovers", "rooms_to_clean",
+    "occupied", "rooms_total", "enterprise", "report_created",
+    "source", "upload_date",
+]
+
+# Mews calls each hotel by its full "Enterprise" name in the Availability
+# report's Parameters tab; the dashboard uses short codes. Only the names
+# actually seen in a real export belong here - an unrecognised enterprise is
+# never guessed at, the upload page asks which hotel it is and shows the raw
+# string so it can be added below.
+MEWS_ENTERPRISE_TO_HOTEL = {
+    "vondel garden hotel": "VGH",
+}
+
+# Trailing window used to calibrate minutes-per-room and the blended hourly
+# rate from historical actuals. Longer = steadier but slower to react to a
+# real change in how the team works.
+DEFAULT_BASELINE_WINDOW_DAYS = 90
+BASELINE_WINDOW_OPTIONS = [60, 90, 180, 365]
+
+# Fallback only - the forecast page seeds each hotel's typical shift length
+# from that hotel's own history (median per-person-per-day hours in the
+# window) and only falls back to this when a hotel has no history yet.
+TYPICAL_SHIFT_HOURS_FALLBACK = 5.0
+
 MONTH_NAMES_NL_EN = {
     # English month names as used in the HK sheets (e.g. "01-June-2026")
     "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
