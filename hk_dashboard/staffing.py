@@ -41,7 +41,7 @@ class SuggestedShift:
     hotel: str
     date: date
     hours: float
-    basis: str  # "solo-calibrated" or "team-average"
+    basis: str  # "assignment-measured", "solo-calibrated" or "team-average"
 
 
 class StaffingEstimator(Protocol):
@@ -60,15 +60,25 @@ def even_split_estimator(
 ) -> list[SuggestedShift]:
     """Split the day's work into equal shifts of that hotel's typical length.
 
-    Uses solo-day throughput where the hotel has any (one person's real
-    minutes-per-room), otherwise falls back to the team-wide average, which
-    is what `predicted_hours` was built from.
+    Person-throughput figure, best first:
+
+    1. **assignment-measured** - the median measured pace of that hotel's
+       housekeepers from logged room assignments, with the daily extras
+       bundle already removed. This is the "better data" this module was
+       left swappable for.
+    2. **solo-calibrated** - minutes per room on days one person worked
+       alone and therefore did every room.
+    3. **team-average** - `predicted_hours` as built, which carries the
+       overhead of several people being on shift together.
     """
     shift_length = baseline.typical_shift_hours
     if not shift_length or shift_length <= 0:
         return []
 
-    if baseline.solo_minutes_per_room and predicted_rooms:
+    if baseline.assignment_minutes_per_room and predicted_rooms:
+        person_hours = predicted_rooms * baseline.assignment_minutes_per_room / 60
+        basis = "assignment-measured"
+    elif baseline.solo_minutes_per_room and predicted_rooms:
         person_hours = predicted_rooms * baseline.solo_minutes_per_room / 60
         basis = "solo-calibrated"
     else:

@@ -5,7 +5,9 @@ from __future__ import annotations
 import streamlit as st
 
 from hk_dashboard.aggregations import LoadResult, attach_costs, load_all_hotel_shifts
+from hk_dashboard.assignment_store import read_assignments
 from hk_dashboard.occupancy_store import read_occupancy_store
+from hk_dashboard.settings_store import read_settings
 from hk_dashboard.rate_store import read_rate_store
 from hk_dashboard.self_report_store import read_self_reports
 from hk_dashboard.staff_store import read_staff
@@ -36,6 +38,16 @@ def _cached_load_self_reports(spreadsheet_id: str):
 @st.cache_data(ttl=600, show_spinner="Loading uploaded occupancy data...")
 def _cached_load_occupancy(spreadsheet_id: str):
     return read_occupancy_store(spreadsheet_id)
+
+
+@st.cache_data(ttl=600, show_spinner="Loading room assignments...")
+def _cached_load_assignments(spreadsheet_id: str):
+    return read_assignments(spreadsheet_id)
+
+
+@st.cache_data(ttl=600, show_spinner="Loading settings...")
+def _cached_load_settings(spreadsheet_id: str):
+    return read_settings(spreadsheet_id)
 
 
 def get_rate_store_id() -> str:
@@ -99,6 +111,16 @@ def get_occupancy():
     return _cached_load_occupancy(get_rate_store_id())
 
 
+def get_assignments():
+    """Cached room-assignment read (logged WhatsApp assignment messages)."""
+    return _cached_load_assignments(get_rate_store_id())
+
+
+def get_settings():
+    """Cached settings read (golden-time targets)."""
+    return _cached_load_settings(get_rate_store_id())
+
+
 def get_dashboard_data():
     """Returns (LoadResult, rates_df, shifts_with_cost_df).
 
@@ -132,6 +154,8 @@ def clear_cache():
     _cached_load_staff.clear()
     _cached_load_self_reports.clear()
     _cached_load_occupancy.clear()
+    _cached_load_assignments.clear()
+    _cached_load_settings.clear()
 
 
 def render_coverage_sidebar(load_result: LoadResult) -> None:

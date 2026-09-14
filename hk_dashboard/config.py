@@ -91,16 +91,50 @@ MEWS_ENTERPRISE_TO_HOTEL = {
     "vondel garden hotel": "VGH",
 }
 
-# Trailing window used to calibrate minutes-per-room and the blended hourly
-# rate from historical actuals. Longer = steadier but slower to react to a
-# real change in how the team works.
-DEFAULT_BASELINE_WINDOW_DAYS = 90
+# Window used to calibrate minutes-per-room and the blended hourly rate from
+# historical actuals. `None` means all history available at the time, which
+# is the default: every historical day with both hours and a room count
+# should feed the baseline, and it should keep improving as history
+# accumulates rather than ageing older days out. The shorter windows stay
+# selectable for checking whether the team's pace has actually shifted.
+DEFAULT_BASELINE_WINDOW_DAYS = None
 BASELINE_WINDOW_OPTIONS = [60, 90, 180, 365]
 
 # Fallback only - the forecast page seeds each hotel's typical shift length
 # from that hotel's own history (median per-person-per-day hours in the
 # window) and only falls back to this when a hotel has no history yet.
 TYPICAL_SHIFT_HOURS_FALLBACK = 5.0
+
+# --- Room assignments & golden time ----------------------------------------
+# Two more tabs in the rate-store spreadsheet, same reasoning as `occupancy`.
+ASSIGNMENT_WORKSHEET = "room_assignments"
+ASSIGNMENT_HEADER = [
+    "date", "hotel", "employee", "raw_name",
+    "checkout_rooms", "checkout_count",
+    "stayover_rooms", "stayover_count",
+    "notes", "entered_at",
+]
+
+SETTINGS_WORKSHEET = "settings"
+SETTINGS_HEADER = ["scope", "key", "value"]
+
+# "Golden time" - what the supervisor is aiming for, not what is measured.
+# Editable from the Room Assignments page (stored in the settings tab, per
+# hotel with a global fallback); these are only the seed values.
+GOLDEN_CHECKOUT_MINUTES = 30.0
+GOLDEN_STAYOVER_MINUTES = 15.0
+# The daily bundle of non-room work (towels, dirty linen, corridors, common
+# areas) - per person per day, not per room. Supervisor's estimate is 25-35.
+GOLDEN_EXTRA_TASKS_MINUTES = 30.0
+GOLDEN_SETTING_KEYS = {
+    "golden_checkout_min": GOLDEN_CHECKOUT_MINUTES,
+    "golden_stayover_min": GOLDEN_STAYOVER_MINUTES,
+    "extra_tasks_min": GOLDEN_EXTRA_TASKS_MINUTES,
+}
+
+# Logged person-days a hotel needs before its assignment-derived pace is
+# trusted over the solo-day/team-wide figures in the staffing estimate.
+MIN_ASSIGNMENT_DAYS_FOR_PACE = 5
 
 MONTH_NAMES_NL_EN = {
     # English month names as used in the HK sheets (e.g. "01-June-2026")

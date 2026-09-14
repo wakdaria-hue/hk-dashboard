@@ -48,6 +48,7 @@ st.markdown(
 - **Hours Submission** — compares reception's hours against what housekeepers self-confirmed; the check-step before payroll submission.
 - **Occupancy Forecast Upload** — upload Mews "Availability report" exports; preview before saving.
 - **Cost Forecast** — predicted rooms, hours, cost and staffing for future dates, with the historical baseline that produced them.
+- **Room Assignments** — log the supervisor's daily WhatsApp room lists; compare each housekeeper's actual time against the golden-time target.
 """
 )
 
@@ -69,8 +70,34 @@ report" from Mews and upload it, the same way payroll comes in as a PDF.
 
 Both historical figures come only from months whose payroll PDF has been
 uploaded, so the hours and the rate they're paired with always come from the
-same closed-out months. Anything forecasted is labelled as such and shows the
-date its Mews export was generated — later dates keep filling up with new
-reservations, so a forecast months out is a floor, not a settled number.
+same closed-out months. The baseline calibrates on **all available history**
+by default and keeps improving as more accumulates. Anything forecasted is
+labelled as such and shows the date its Mews export was generated — later
+dates keep filling up with new reservations, so a forecast months out is a
+floor, not a settled number.
+"""
+    )
+
+with st.expander("Golden time: the target line"):
+    st.markdown(
+        """
+**Golden time** is what the supervisor is aiming for — by default 30 minutes
+for a check-out room, 15 for a stay-over, plus a 30-minute daily bundle per
+person for towels, linen and common areas. These are editable on the **Room
+Assignments** page, globally or per hotel.
+
+It appears in two ways. Per housekeeper, the Room Assignments page compares
+their logged hours against the target for the rooms they were actually
+assigned. At hotel and portfolio level, a dashed **Golden** line on the
+Trends and Cost Forecast charts shows what a period would cost if every room
+hit the target — so you can see how far actual *and* forecast sit from the
+goal, not just from each other. It is deliberately styled as a reference
+line: it is neither a real actual nor a real forecast.
+
+Room assignment exists only in the supervisor's daily WhatsApp messages —
+not in Mews, not in the hours sheets — so the comparison only covers days
+whose message has been pasted in. Where a day has rooms assigned but no
+hours logged (someone covered rooms without recording time), that gap is
+flagged rather than quietly dropped.
 """
     )

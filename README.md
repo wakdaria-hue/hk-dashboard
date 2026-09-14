@@ -322,13 +322,22 @@ hotel it is and show you the exact name to add to that map.
 - **Predicted cost** = predicted hours × that hotel's **blended hourly rate**
   (total cost ÷ total hours over the window, so it's weighted by hours
   actually worked rather than averaging the listed rates).
-- Both historical figures are computed per hotel over a trailing window you
-  can change on the page (60 / 90 / 180 / 365 days, or all history), and both
-  are **payroll-gated** - only months whose "Overzicht Loonkosten" PDF has
-  been uploaded contribute, so the minutes-per-room figure and the rate it's
-  paired with always come from the same closed-out months. Only days that
-  have *both* occupancy and hours can calibrate anything; the page shows how
-  many days actually matched.
+- Both historical figures are computed per hotel over **all available
+  history** by default - every historical day that has both hours and a room
+  count feeds the baseline, and it keeps improving as history accumulates
+  rather than ageing older days out. The shorter windows (60 / 90 / 180 /
+  365 days) stay selectable on the page for checking whether the team's pace
+  has actually shifted. Both are **payroll-gated** - only months whose
+  "Overzicht Loonkosten" PDF has been uploaded contribute, so the
+  minutes-per-room figure and the rate it's paired with always come from the
+  same closed-out months. Only days that have *both* a room count and hours
+  can calibrate anything; the page shows how many days actually matched.
+- Room counts for the baseline come from Mews first, and from logged room
+  assignments (Step 10) only for days Mews doesn't cover. That's the
+  opposite priority to the golden line, deliberately: minutes-per-room is a
+  *ratio*, so a day where only some housekeepers' assignment messages were
+  logged would undercount rooms and inflate the figure. Mews covers every
+  day of its range by construction.
 - **Minutes per room is team-wide, and that's a real limitation.** On most
   days several housekeepers work the same rooms and only a per-person daily
   hours total is recorded, so there is no reliable way to attribute rooms to
@@ -341,16 +350,122 @@ hotel it is and show you the exact name to add to that map.
   **18 min/room** against a team-wide **32 min/room**, i.e. a team day
   carries real overhead. It's used for the staffing estimate only, never for
   the cost forecast.
-- **Staffing estimate** is explicitly a rough first pass: predicted work ÷
-  that hotel's typical shift length, giving a **count of shifts needed**, not
-  named people. It lives behind a swappable interface
-  (`hk_dashboard/staffing.py`, `estimate_shifts()`) so a better method can
-  replace it once per-room, per-person data exists - don't wire a new
-  assumption into the page itself.
+- **Staffing estimate** is a rough first pass: predicted work ÷ that hotel's
+  typical shift length, giving a **count of shifts needed**, not named
+  people. It lives behind a swappable interface
+  (`hk_dashboard/staffing.py`, `estimate_shifts()`). It now picks the best
+  person-throughput figure available per hotel, in order: measured pace from
+  logged room assignments (Step 10), then solo-day throughput, then the
+  team-wide average - and each row says which basis it used.
 - Everything forecasted is labelled **Forecasted** and shows the date its
   Mews export was generated. A future date only reflects the bookings on the
   books at that moment, so a forecast months out is a floor, not a settled
   number - re-upload a fresher export closer to the time.
+
+---
+
+## Step 10 - Room assignments & golden time
+
+Room-level assignment exists in exactly one place: the housekeeping
+supervisor's daily WhatsApp message to each housekeeper, listing the rooms
+they're responsible for. It is not in Mews and not in the hours sheets. The
+**Room Assignments** page (admin, in the private dashboard) is where those
+messages get logged, and where each housekeeper's actual time is compared
+against a **golden-time** target.
+
+**Why it matters:** the two records can disagree. A real VGH day had only one
+person's hours logged, while the assignment messages showed she was
+responsible for just over half the hotel's rooms - someone else covered the
+rest without ever logging time. That gap is invisible in the hours sheet
+alone, and it means that day's cost is understated everywhere in this
+dashboard. The page flags it rather than fixing it silently.
+
+**No setup needed** - two more tabs (`room_assignments`, `settings`) are
+created automatically in the rate-store spreadsheet on first use.
+
+### Logging a message
+
+Paste the message into the form with its date and hotel. The parser pulls out
+the housekeeper's name (after "for HK"), the check-out room list and the
+stay-over room list. Room codes are alphanumeric (`G01`, `B02`, `102`), and
+the lists can run across several lines.
+
+Names are normalised through the **same** map the hours sheets use
+(`NAME_MAP` in `hk_dashboard/config.py`), so "Kiko" becomes
+"F Rodrigues Prudencio" and joins straight to the hours data. A nickname that
+isn't in that map is flagged in the preview rather than saved as a
+guess - fix the spelling, or add the mapping.
+
+Trailing instructions ("Collect and wash your towels...", "Cleaning stairs
+and corridors...") sit under the "Stay over" heading with no blank line, so
+they're separated by content rather than position and kept as a **notes**
+field on the entry. They're useful for explaining an outlier later; no time
+is inferred from them automatically. Always check the preview before saving.
+
+### Golden time
+
+The supervisor's target, editable on that page (globally, or per hotel):
+
+| Setting | Default |
+| --- | --- |
+| Minutes per check-out room | 30 |
+| Minutes per stay-over room | 15 |
+| Extra tasks, per person per day | 30 (supervisor's range: 25-35) |
+
+Per housekeeper per day:
+
+- `golden_minutes = check-outs x 30 + stay-overs x 15`
+- `actual_room_minutes = hours logged x 60 - extra-tasks estimate`
+- `variance = actual_room_minutes - golden_minutes`
+
+**Read the variance, not the flat minutes-per-room.** The page shows the
+golden average per room next to the actual average per room on purpose: a day
+of mostly check-outs allows more time per room than a day of stay-overs, so
+two people with the same flat average can be at very different distances from
+target. The flat figure is not a ranking.
+
+**A single day is not a verdict.** Day-level detail is available, but the
+page leads with week and month averages per person - one day is noisy (a hard
+day, an unusual mix, a standard still settling in).
+
+### Data-quality flags
+
+- **No hours logged** - rooms were assigned but no time was recorded for that
+  person that day. This is the gap described above; it's shown as an error,
+  not hidden.
+- **No assignment logged** - hours exist but that day's message hasn't been
+  pasted in. Only raised for days inside the span a hotel actually has
+  logging for, so starting to use this feature doesn't retroactively flag
+  every shift ever worked.
+
+Neither side is dropped or guessed at, and flagged days never contribute to
+any variance average.
+
+### The golden line
+
+The same maths at hotel and portfolio level answers "what would this period
+cost if everyone hit the target?" - plotted as a dashed **Golden** reference
+series on the **Trends** and **Cost Forecast** charts, alongside actual and
+forecast. It's styled distinctly because it is neither.
+
+Room counts come from logged assignments where they exist and Mews
+rooms-to-clean otherwise (Mews' `Departures`/`Stayovers` tabs are already the
+check-out/stay-over split the maths needs, so the fallback is exact, not a
+proxy). The per-person extras bundle needs a headcount, which Mews alone
+can't give - where one is known (who logged hours, for a past day; the
+staffing estimate, for a forecast day) it's included, and the chart caption
+says which basis was used.
+
+On Trends the golden line appears for hotel and portfolio views only - one
+housekeeper's share of a hotel-level target isn't a defined quantity.
+
+### Feeding the forecast
+
+Once a housekeeper has at least `MIN_ASSIGNMENT_DAYS_FOR_PACE` (5) logged
+days, their measured pace - actual room minutes per room, extras removed -
+becomes available to the Phase 2 staffing estimate. A future date has no
+named housekeeper, so the estimate uses the **median** of that hotel's
+measured people rather than any one individual's number.
 
 ## Monthly workflow
 
